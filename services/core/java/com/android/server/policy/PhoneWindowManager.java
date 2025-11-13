@@ -254,7 +254,9 @@ import com.android.server.GestureLauncherService;
 import com.android.server.LocalServices;
 import com.android.server.SystemServiceManager;
 import com.android.server.UiThread;
+import com.android.server.input.InputDataStore;
 import com.android.server.input.InputManagerInternal;
+import com.android.server.input.KeyGestureController;
 import com.android.server.inputmethod.InputMethodManagerInternal;
 import com.android.server.pm.UserManagerInternal;
 import com.android.server.policy.keyguard.KeyguardServiceDelegate;
@@ -481,6 +483,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     IActivityManager mActivityManagerService;
     ActivityTaskManagerInternal mActivityTaskManagerInternal;
     AutofillManagerInternal mAutofillManagerInternal;
+//    InputDataStore mInputDataStore;
     InputManager mInputManager;
     InputManagerInternal mInputManagerInternal;
     DreamManagerInternal mDreamManagerInternal;
@@ -493,6 +496,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     DisplayManagerInternal mDisplayManagerInternal;
     UserManagerInternal mUserManagerInternal;
     DockObserverInternal mDockObserverInternal;
+    KeyGestureController mKeyGestureController;
 
     private WallpaperManagerInternal mWallpaperManagerInternal;
 
@@ -763,7 +767,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     boolean mHavePendingMediaKeyRepeatWithWakeLock;
 
     private int mCurrentUserId;
-    private boolean haveEnableGesture = false;
 
     private AssistUtils mAssistUtils;
 
@@ -854,8 +857,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private CameraAvailbilityListener mCameraAvailabilityListener;
 
     private ScreenshotHelper mScreenshotHelper;
-
-    private SwipeToScreenshotListener mSwipeToScreenshot;
 
     private class PolicyHandler extends Handler {
 
@@ -1106,9 +1107,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     UserHandle.USER_ALL);
             resolver.registerContentObserver(Settings.System.getUriFor(
                     "doze_trigger_doubletap"), false, this,
-                    UserHandle.USER_ALL);
-            resolver.registerContentObserver(Settings.System.getUriFor(
-                    Settings.System.SWIPE_TO_SCREENSHOT), false, this,
                     UserHandle.USER_ALL);
             updateSettings();
         }
@@ -2518,6 +2516,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     @VisibleForTesting
     static class Injector {
         private final Context mContext;
+//        private final Looper mIoLooper = mIoThread.getLooper();
         private final WindowManagerFuncs mWindowManagerFuncs;
 
         Injector(Context context, WindowManagerFuncs funcs) {
@@ -2536,6 +2535,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         Looper getLooper() {
             return Looper.myLooper();
         }
+
+//        Looper getIoLooper() {
+//            return mIoLooper;
+//        }
 
         Supplier<GlobalActions> getGlobalActionsFactory() {
             return () -> new GlobalActions(mContext, mWindowManagerFuncs);
@@ -2592,6 +2595,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         mActivityManagerService = injector.getActivityManagerService();
         mActivityTaskManagerInternal = LocalServices.getService(ActivityTaskManagerInternal.class);
         mInputManager = mContext.getSystemService(InputManager.class);
+//        mInputDataStore = new InputDataStore();
         mInputManagerInternal = LocalServices.getService(InputManagerInternal.class);
         mDreamManagerInternal = LocalServices.getService(DreamManagerInternal.class);
         mPowerManagerInternal = LocalServices.getService(PowerManagerInternal.class);
@@ -2608,6 +2612,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         mGlobalActionsFactory = injector.getGlobalActionsFactory();
         mLockPatternUtils = injector.getLockPatternUtils();
         mLogger = new MetricsLogger();
+//        mKeyGestureController = new KeyGestureController(mContext, injector.getLooper(),
+//                injector.getIoLooper(), mInputDataStore);
 
         Resources res = mContext.getResources();
         mWakeOnDpadKeyPress =
@@ -2654,13 +2660,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
         mHandler = new PolicyHandler(injector.getLooper());
         mScreenshotHelper = new ScreenshotHelper(mContext);
-        mSwipeToScreenshot = new SwipeToScreenshotListener(mContext, new SwipeToScreenshotListener.Callbacks() {
-            @Override
-            public void onSwipeThreeFinger() {
-                interceptScreenshotChord(
-                        SCREENSHOT_KEY_OTHER, 0 /*pressDelay*/);
-            }
-        });
         mWakeGestureListener = new MyWakeGestureListener(mContext, mHandler);
         mSettingsObserver = new SettingsObserver(mHandler);
         mSettingsObserver.observe();
@@ -3281,18 +3280,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         mSingleKeyGestureDetector.addRule(new AppSwitchKeyRule());
     }
 
-     private void enableSwipeThreeFingerGesture(boolean enable){
-        if (enable) {
-            if (haveEnableGesture) return;
-            haveEnableGesture = true;
-            mWindowManagerFuncs.registerPointerEventListener(mSwipeToScreenshot, DEFAULT_DISPLAY);
-        } else {
-            if (!haveEnableGesture) return;
-            haveEnableGesture = false;
-            mWindowManagerFuncs.unregisterPointerEventListener(mSwipeToScreenshot, DEFAULT_DISPLAY);
-        }
-    }
-
     private void updateKeyAssignments() {
         int activeHardwareKeys = mDeviceHardwareKeys;
 
@@ -3472,7 +3459,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             //Three Finger Gesture
             boolean threeFingerGesture = Settings.System.getIntForUser(resolver,
                     Settings.System.SWIPE_TO_SCREENSHOT, 0, UserHandle.USER_CURRENT) == 1;
-            enableSwipeThreeFingerGesture(threeFingerGesture);
+            if (mKeyGestureController != null) {
+                mKeyGestureController.enableSwipeThreeFingerGesture(threeFingerGesture);
+            }
 
             // Configure wake gesture.
             boolean wakeGestureEnabledSetting = Settings.Secure.getIntForUser(resolver,
