@@ -88,6 +88,10 @@ constructor(
         get() = getContextOrDefault(focusedDisplayRepository.focusedDisplayId.value)
 
     private fun getContextOrDefault(displayId: Int): Context {
+        if (displayId == Display.DEFAULT_DISPLAY) {
+            return defaultContext
+        }
+
         return try {
             traceSection({ "Getting dialog context for displayId=$displayId" }) {
                 val displayWindowProperties =
