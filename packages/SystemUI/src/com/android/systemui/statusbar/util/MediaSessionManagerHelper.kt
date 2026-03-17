@@ -9,6 +9,7 @@ package com.android.systemui.statusbar.util
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
 import android.media.MediaMetadata
 import android.media.session.MediaController
@@ -284,6 +285,12 @@ class MediaSessionManagerHelper private constructor(ctx: Context) {
                 lastSavedPackageName = pkg
             }
         }
+    }
+
+    fun getMediaBitmap(): Bitmap? = mediaMetadata.value?.let {
+        it.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+            ?: it.getBitmap(MediaMetadata.METADATA_KEY_ART)
+            ?: it.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
     }
 
     fun getCurrentMediaMetadata(): MediaMetadata? = mediaMetadata.value
