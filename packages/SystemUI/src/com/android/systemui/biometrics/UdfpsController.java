@@ -83,7 +83,7 @@ import com.android.systemui.biometrics.dagger.BiometricsBackground;
 import com.android.systemui.biometrics.domain.interactor.UdfpsOverlayInteractor;
 import com.android.systemui.biometrics.shared.model.UdfpsOverlayParams;
 import com.android.systemui.biometrics.udfps.InteractionEvent;
-import com.android.systemui.biometric.MtkUdfpsScrimController;
+import com.android.systemui.biometrics.MtkUdfpsScrimController;
 import com.android.systemui.biometrics.udfps.NormalizedTouchData;
 import com.android.systemui.biometrics.udfps.SinglePointerTouchProcessor;
 import com.android.systemui.biometrics.udfps.TouchProcessor;
